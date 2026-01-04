@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 修正 CSP 錯誤：允許 Babel 執行所需的指令，並授權 YouTube 來源 -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.youtube.com https://s.ytimg.com;">
+    
+    <title>Way2Go Travel | 城市快閃旅遊專家</title>
+    
+    <!-- 引入開發工具庫 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 全域動畫定義 */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.8s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 1.2s ease-out forwards; }
+        .animation-delay-300 { animation-delay: 300ms; }
+        .animation-delay-500 { animation-delay: 500ms; }
+        
+        /* YouTube 背景容器 */
+        .video-background {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -20; pointer-events: none; overflow: hidden; background: #000;
+        }
+        
+        /* 確保影片填滿螢幕並隱藏 YouTube 標誌 */
+        #player {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 100vw; height: 56.25vw;
+            min-height: 100vh; min-width: 177.77vh;
+            transform: translate(-50%, -50%);
+        }
+
+        /* 藝廊卡片樣式 */
+        .gallery-card {
+            overflow: hidden;
+            border-radius: 2rem;
+            position: relative;
+            background: #111;
+        }
+        .gallery-image {
+            transition: transform 1s cubic-bezier(0.2, 1, 0.3, 1), filter 0.6s ease;
+            width: 100%; height: 100%; object-fit: cover;
+            filter: grayscale(100%) brightness(0.6);
+        }
+        .gallery-card:hover .gallery-image {
+            transform: scale(1.1);
+            filter: grayscale(0%) brightness(1);
+        }
+
+        html { scroll-behavior: smooth; }
+        [data-reactroot] { opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // 內嵌 SVG 圖示
+        const Icons = {
+            ArrowRight: ({ size = 24 }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            ),
+            MapPin: ({ size = 24 }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            ),
+            Coffee: ({ size = 24 }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
+            ),
+            Zap: ({ size = 24 }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            ),
+            Globe: ({ size = 24 }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            )
+        };
+
+        const FlashCard = ({ iconName, title, content, isFeatured = false, delay = 0 }) => {
+            const Icon = Icons[iconName];
+            return (
+                <div 
+                    className={`flex flex-col p-8 rounded-3xl transition-all duration-500 transform hover:-translate-y-4 hover:shadow-2xl cursor-pointer ${isFeatured ? 'bg-[#0055FF] text-white' : 'bg-white text-black border border-gray-100 shadow-sm'} animate-fade-in-up opacity-0`}
+                    style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
+                >
+                    <div className={`mb-6 p-4 rounded-full w-fit ${isFeatured ? 'bg-white/20' : 'bg-blue-50'}`}>
+                        {Icon && <Icon size={28} />}
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4">{title}</h3>
+                    <p className={`text-sm mb-8 leading-relaxed ${isFeatured ? 'text-blue-50' : 'text-gray-500'}`}>{content}</p>
+                    <div className="mt-auto flex items-center gap-2 font-bold text-sm">
+                        了解更多 <Icons.ArrowRight size={16} />
+                    </div>
+                </div>
+            );
+        };
+
+        const GalleryItem = ({ city, title, imgUrl, className = "" }) => (
+            <div className={`gallery-card group ${className}`}>
+                <img src={imgUrl} alt={title} className="gallery-image" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-8 text-white">
+                    <span className="text-xs uppercase tracking-[0.4em] mb-2 text-blue-400 font-bold">{city}</span>
+                    <h4 className="text-3xl font-black italic">{title}</h4>
+                </div>
+            </div>
+        );
+
+        function App() {
+            const videoId = "6r1I68BGrIs"; 
+            const playerRef = useRef(null);
+            const [scrolled, setScrolled] = useState(false);
+
+            useEffect(() => {
+                const handleScroll = () => setScrolled(window.scrollY > 50);
+                window.addEventListener('scroll', handleScroll);
+
+                const initVideo = () => {
+                    if (window.YT && window.YT.Player) {
+                        playerRef.current = new window.YT.Player('player', {
+                            videoId: videoId,
+                            playerVars: { 
+                                autoplay: 1, mute: 1, loop: 1, playlist: videoId, 
+                                controls: 0, showinfo: 0, modestbranding: 1, 
+                                rel: 0, iv_load_policy: 3, enablejsapi: 1
+                            },
+                            events: {
+                                onReady: (e) => { e.target.mute(); e.target.playVideo(); },
+                                onStateChange: (e) => { if (e.data === 0) e.target.playVideo(); }
+                            }
+                        });
+                    }
+                };
+
+                if (!window.YT) {
+                    const tag = document.createElement('script');
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    document.body.appendChild(tag);
+                    window.onYouTubeIframeAPIReady = initVideo;
+                } else {
+                    initVideo();
+                }
+
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-white font-sans text-black overflow-x-hidden">
+                    {/* 導航欄 */}
+                    <nav className={`fixed top-0 w-full z-50 transition-all duration-500 px-8 py-6 flex justify-between items-center ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'text-white mix-blend-difference'}`}>
+                        <div className="text-2xl font-black tracking-tighter italic">Way2Go.</div>
+                        <div className="hidden md:flex gap-10 text-xs uppercase tracking-widest font-bold">
+                            <a href="#services" className="hover:text-blue-600">服務</a>
+                            <a href="#destinations" className="hover:text-blue-600">目的地</a>
+                            <a href="#newsletter" className="hover:text-blue-600">加入</a>
+                        </div>
+                    </nav>
+
+                    {/* 主視覺區 */}
+                    <section className="relative h-screen flex flex-col justify-center items-center px-4 text-white">
+                        <div className="video-background"><div id="player" className="opacity-60"></div></div>
+                        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/60 via-transparent to-white"></div>
+                        
+                        <div className="max-w-5xl text-center space-y-10">
+                            {/* 調小後的字體大小 */}
+                            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight animate-fade-in opacity-0" style={{animationFillMode: 'forwards'}}>
+                                城市很大，<br /><span className="text-[#0055FF]">我們帶你走快一點。</span>
+                            </h1>
+                            <p className="text-lg md:text-2xl font-light tracking-widest animate-fade-in animation-delay-300 opacity-0" style={{animationFillMode: 'forwards'}}>
+                                48 小時，重新愛上一座城。
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-6 justify-center pt-10 animate-fade-in animation-delay-500 opacity-0" style={{animationFillMode: 'forwards'}}>
+                                <button className="bg-[#0055FF] px-12 py-5 rounded-full font-black hover:scale-105 transition-transform shadow-2xl">立即出發</button>
+                                <button className="bg-white/10 backdrop-blur-xl border border-white/30 px-12 py-5 rounded-full font-black hover:bg-white hover:text-blue-600 transition-all">探索城市</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 服務卡片區 */}
+                    <section id="services" className="px-8 py-40 bg-white">
+                        <div className="max-w-7xl mx-auto">
+                            <div className="mb-20">
+                                <span className="text-blue-600 font-bold tracking-widest uppercase text-sm">Our Focus</span>
+                                <h2 className="text-5xl font-black tracking-tighter italic mt-2">重新定義你的旅程</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                <FlashCard iconName="MapPin" title="隱藏路徑" content="不走觀光客的老路，只去當地人的秘境。" delay={100} />
+                                <FlashCard iconName="Coffee" title="風味採集" content="從清晨的咖啡到深夜的酒吧，蒐集城市的味道。" delay={200} />
+                                <FlashCard iconName="Globe" title="數位遊牧" content="為工作與旅行找到完美的平衡點。" delay={300} />
+                                <FlashCard iconName="Zap" title="城市快閃" content="極致壓縮，釋放最大的旅遊能量。" isFeatured={true} delay={400} />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 藝廊區 */}
+                    <section id="destinations" className="px-8 py-40 bg-gray-50">
+                        <div className="max-w-7xl mx-auto">
+                            <h2 className="text-5xl font-black tracking-tighter italic mb-20">熱門城市藝廊</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 h-[1200px] md:h-[800px]">
+                                <GalleryItem className="md:col-span-8" city="Japan" title="TOKYO 夜色" imgUrl="https://images.unsplash.com/photo-1540959733332-e94e270b4d82?auto=format&fit=crop&w=1200" />
+                                <GalleryItem className="md:col-span-4 md:row-span-2" city="France" title="PARIS 巷弄" imgUrl="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=800" />
+                                <GalleryItem className="md:col-span-4" city="USA" title="NEW YORK" imgUrl="https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=800" />
+                                <GalleryItem className="md:col-span-4" city="UK" title="LONDON" imgUrl="https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800" />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 數據區 */}
+                    <section className="px-8 py-32 bg-white">
+                        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-20 text-center">
+                            <div><h3 className="text-7xl font-black text-blue-600">50+</h3><p className="font-bold tracking-widest mt-4">合作城市</p></div>
+                            <div><h3 className="text-7xl font-black text-blue-600">12K</h3><p className="font-bold tracking-widest mt-4">滿意旅伴</p></div>
+                            <div><h3 className="text-7xl font-black text-blue-600">4.9</h3><p className="font-bold tracking-widest mt-4">平均評分</p></div>
+                        </div>
+                    </section>
+
+                    {/* 訂閱區 */}
+                    <section id="newsletter" className="px-8 py-40">
+                        <div className="max-w-6xl mx-auto bg-blue-600 rounded-[3rem] p-16 md:p-32 text-white text-center space-y-12">
+                            <h2 className="text-5xl md:text-7xl font-black italic">準備好快閃了嗎？</h2>
+                            <div className="flex flex-col md:flex-row gap-4 max-w-lg mx-auto">
+                                <input type="email" placeholder="你的 Email" className="flex-1 px-8 py-5 rounded-full text-black font-bold outline-none" />
+                                <button className="bg-black px-10 py-5 rounded-full font-bold uppercase">訂閱提案</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <footer className="px-8 py-20 border-t border-gray-100 flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-gray-300">
+                        <div>© 2026 Way2Go Travel.</div>
+                        <div className="flex gap-10"><a href="#">隱私權政策</a><a href="#">服務條款</a></div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
